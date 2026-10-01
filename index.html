@@ -305,6 +305,33 @@ main:after{
 .overview-grid .interp{min-width:0}
 @media(max-width:760px){.overview-grid{grid-template-columns:1fr}.learn-single-card{padding:17px}}
 
+
+/* v10.2 · 모바일 코드조립 순서 이동 버튼 */
+.piece-controls{
+  display:flex;flex-direction:column;gap:5px;margin-left:7px;
+}
+.piece-move{
+  width:34px;height:30px;border:1px solid #d8ddd6;background:#fff;border-radius:9px;
+  cursor:pointer;font-size:15px;line-height:1;display:flex;align-items:center;justify-content:center;
+  box-shadow:0 2px 6px rgba(38,65,45,.06)
+}
+.piece-move:hover{background:#f2f9ef;border-color:#9bc5a5}
+.piece-move:disabled{opacity:.28;cursor:not-allowed}
+.piece{
+  grid-template-columns:24px minmax(0,1fr) auto!important;
+}
+.mobile-puzzle-tip{
+  display:none;margin:0 0 10px;padding:10px 12px;border-radius:12px;
+  background:#fff7d8;border:1px solid #efd88c;color:#6b5b2b;font-size:12px;line-height:1.6
+}
+@media(max-width:760px){
+  .mobile-puzzle-tip{display:block}
+  .piece{cursor:default!important}
+  .piece .handle{opacity:.35}
+  .piece-controls{display:flex}
+  .piece-move{width:40px;height:36px;font-size:17px}
+}
+
 @media(max-width:900px){main:before,main:after{left:0}}
 
 @media(max-width:640px){.single-q-card{padding:18px}.single-q-card .question{font-size:16px}.quiz-top{align-items:flex-start;flex-direction:column}.score-pill{align-self:flex-end}}
@@ -1053,15 +1080,48 @@ function renderPuzzle(){
  const c=CHAPTERS[state.chapter],el=document.getElementById("stage-puzzle");
  const snippets=PUZZLE_SNIPPETS[c.id]||c.order;
  const items=shuffle(c.order.map((x,i)=>({x,i,code:snippets[i]||x})));puzzleOrders[state.chapter]=items;
- el.innerHTML=`<div class="title"><h2>🧩 코드 블록을 실제 작성 순서로 조립</h2><p>이번엔 이름만 보지 말고 <b>실제 코드 조각까지 같이</b> 보면서 순서를 맞춥니다. 긴 코드는 핵심만 남기고 ...으로 줄였습니다.</p></div>
- <div class="card"><div class="puzzle-help"><strong>TIP</strong> · “준비 → 핵심 기능 → 출력/마무리”를 먼저 찾아보세요. 블록을 잡아 위아래로 이동합니다.</div>
- <div class="puzzle" id="puzzle">${items.map(v=>`<div class="piece" draggable="true" data-i="${v.i}">
-   <span class="handle">☰</span><div class="piece-main"><div class="piece-title">${v.x}</div>${codeWindow(v.code,c.file,c.lang,4)}</div>
- </div>`).join("")}</div>
- <div id="puzzleKitty" class="puzzle-kitty"></div>
- <div class="puzzle-result" id="puzzleResult"></div>
- <div class="buttons"><button class="primary" onclick="checkPuzzle()">정답 확인</button><button class="secondary" onclick="renderPuzzle()">다시 섞기</button><button class="secondary" id="puzzleNext" onclick="showStage('blank')" disabled>빈칸 작성으로 →</button></div></div>`;
+ el.innerHTML=`<div class="title"><h2>🧩 코드 블록을 실제 작성 순서로 조립</h2><p>PC에서는 드래그, 모바일에서는 <b>↑ ↓ 버튼</b>으로 순서를 바꿀 수 있어요.</p></div>
+ <div class="card">
+   <div class="mobile-puzzle-tip">📱 <b>모바일 사용법</b><br>각 코드 블록 오른쪽의 <b>↑ / ↓</b> 버튼을 눌러 순서를 맞춰주세요. 드래그하지 않아도 됩니다!</div>
+   <div class="puzzle-help"><strong>TIP</strong> · “준비 → 핵심 기능 → 출력/마무리”를 먼저 찾아보세요.</div>
+   <div class="puzzle" id="puzzle">${items.map((v,idx)=>`<div class="piece" draggable="true" data-i="${v.i}">
+      <span class="handle">☰</span>
+      <div class="piece-main"><div class="piece-title">${v.x}</div>${codeWindow(v.code,c.file,c.lang,4)}</div>
+      <div class="piece-controls">
+        <button class="piece-move" onclick="movePuzzleBlock(this,-1)" aria-label="위로 이동">↑</button>
+        <button class="piece-move" onclick="movePuzzleBlock(this,1)" aria-label="아래로 이동">↓</button>
+      </div>
+   </div>`).join("")}</div>
+   <div id="puzzleKitty" class="puzzle-kitty"></div>
+   <div class="puzzle-result" id="puzzleResult"></div>
+   <div class="buttons"><button class="primary" onclick="checkPuzzle()">정답 확인</button><button class="secondary" onclick="renderPuzzle()">다시 섞기</button><button class="secondary" id="puzzleNext" onclick="showStage('blank')" disabled>빈칸 작성으로 →</button></div>
+ </div>`;
  setupDrag();
+ updatePuzzleMoveButtons();
+}
+
+function movePuzzleBlock(btn,dir){
+  const piece=btn.closest(".piece");
+  const puzzle=document.getElementById("puzzle");
+  if(!piece||!puzzle)return;
+  if(dir<0 && piece.previousElementSibling){
+    puzzle.insertBefore(piece,piece.previousElementSibling);
+  }else if(dir>0 && piece.nextElementSibling){
+    puzzle.insertBefore(piece.nextElementSibling,piece);
+  }
+  updatePuzzleMoveButtons();
+  piece.animate(
+    [{transform:"scale(.985)",background:"#fffbe9"},{transform:"scale(1)",background:"#fff"}],
+    {duration:220}
+  );
+}
+function updatePuzzleMoveButtons(){
+  const pieces=[...document.querySelectorAll("#puzzle .piece")];
+  pieces.forEach((piece,i)=>{
+    const btns=piece.querySelectorAll(".piece-move");
+    if(btns[0]) btns[0].disabled=(i===0);
+    if(btns[1]) btns[1].disabled=(i===pieces.length-1);
+  });
 }
 function setupDrag(){
  const p=document.getElementById("puzzle");let drag=null;
@@ -1069,7 +1129,7 @@ function setupDrag(){
   item.addEventListener("dragstart",()=>{drag=item;item.classList.add("dragging")});
   item.addEventListener("dragend",()=>{item.classList.remove("dragging");drag=null});
   item.addEventListener("dragover",e=>e.preventDefault());
-  item.addEventListener("drop",e=>{e.preventDefault();if(!drag||drag===item)return;const all=[...p.children],di=all.indexOf(drag),ti=all.indexOf(item);if(di<ti)item.after(drag);else item.before(drag)});
+  item.addEventListener("drop",e=>{e.preventDefault();if(!drag||drag===item)return;const all=[...p.children],di=all.indexOf(drag),ti=all.indexOf(item);if(di<ti)item.after(drag);else item.before(drag);updatePuzzleMoveButtons();});
  });
 }
 function checkPuzzle(){
